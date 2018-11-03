@@ -214,6 +214,7 @@ CK_RV initialize_token(CK_SLOT_ID slot_id_to_init)
 	scanf("%s",token_label);
 	printf("Enter new SO password: ");
 
+	getchar();
 	read_pin(so_password,&so_password_len);
 
 	err = p11_functions->C_InitToken(slot_id_to_init,so_password,so_password_len,token_label);
@@ -290,7 +291,7 @@ CK_RV open_session(CK_SLOT_ID slot_id)
 
 	if(option)
 	{
-		session_flags = session_flags | CKF_SERIAL_SESSION;
+		session_flags = session_flags | CKF_SERIAL_SESSION ;
 	}
 
 	/* Open session and get handle in session_handle */
@@ -339,6 +340,16 @@ CK_RV close_session()
 	CK_SLOT_ID slot_id = 0;
 	int option = 0;
 
+	/* Check if any session is opened on token */
+	if (session_count == 0)
+	{
+		printf("\n No sessions are opened on token !!!\n");
+		goto exit;
+	}
+
+	/* Display openend session */
+	display_opened_session();
+
 	printf("\nClose single session[0] or all session[1]: ");
 	scanf("%d",&option);
 
@@ -352,6 +363,13 @@ CK_RV close_session()
 		err = p11_functions->C_CloseAllSessions(slot_id);
 		if( err )
 		{
+			/* If invalid slot id */
+			if ( err == CKR_SLOT_ID_INVALID )
+			{
+				err = CKR_OK;
+				printf("\nERROR: Invalid slot id entered!!!\n");
+				goto exit;
+			}
 			logger(err,"C_CloseAllSessions() failed",__LINE__,__FILE__,__FUNCTION__);
 			goto exit;
 		}
@@ -368,16 +386,6 @@ CK_RV close_session()
 	}
 	else
 	{
-		/* If no session openend, exit */
-		if( session_count == 0)
-		{
-			printf("\nNo session currently opened !!!\n");
-			goto exit;
-		}
-
-		/* Display opened sessions */
-		display_opened_session();
-
 		printf("\nSelect session: ");
 		scanf("%d",&option);
 
@@ -442,6 +450,7 @@ CK_RV init_pin()
 
 	printf("\nEnter new user PIN: ");
 
+	getchar();
 	read_pin(user_pin,&user_pin_len);
 
 	err = p11_functions->C_InitPIN(current_session,user_pin,user_pin_len);
@@ -463,7 +472,6 @@ CK_RV init_pin()
 			goto exit;
 		}
 
-
 		logger(err, "C_InitPIN() failed", __LINE__, __FILE__,__FUNCTION__);
 		goto exit;
 	}
@@ -473,6 +481,73 @@ CK_RV init_pin()
 		return err;
 }
 
+/*
+ * Function : change_pin()
+ * Description : Modifies the PIN of the SO based on the session handle provided.
+ * Known Bug: Unable to change normal user PIN
+ */
+CK_RV change_pin()
+{
+	CK_RV err = CKR_OK;
+	CK_BYTE old_pin[MAX_PWD_LEN]={0};
+	unsigned int old_pin_len = 0;
+	CK_BYTE new_pin[MAX_PWD_LEN]={0};
+	unsigned int new_pin_len = 0;
+	CK_SESSION_HANDLE current_session = CKR_SESSION_HANDLE_INVALID;
+	int option = 0;
+
+	/* Check if any session is opened on token */
+	if( session_count == 0)
+	{
+		printf("\n No sessions are opened on token !!!\n");
+		goto exit;
+	}
+
+	/* Display opened session */
+	display_opened_session();
+
+	/* Select the session on which PIN is to be changed , can be of SO or user, but login is required */
+	printf("\nSelect session : ");
+	scanf("%d", &option);
+	current_session = session_arr[option - 1].session_handle;
+
+	getchar();
+	printf("\nEnter old PIN: ");
+	read_pin(old_pin, &old_pin_len);
+
+	fflush(stdout);
+
+	printf("\nEnter new PIN: ");
+	read_pin(new_pin, &new_pin_len);
+
+	err = p11_functions->C_SetPIN(current_session,old_pin,old_pin_len,new_pin,new_pin_len);
+	if( err )
+	{
+		/* If PIN not in range */
+		if( err == CKR_PIN_LEN_RANGE )
+		{
+			err = CKR_OK;
+			printf("\nERROR: PIN length not in range !!!\n");
+			goto exit;
+		}
+
+		/* If old PIN entered is incorrect */
+		if( err == CKR_PIN_INCORRECT)
+		{
+			err = CKR_OK;
+			printf("\nERROR: Old PIN entered is incorrect !!! \n");
+			goto exit;
+		}
+
+		logger(err, "C_SetPIN() failed", __LINE__, __FILE__,__FUNCTION__);
+		goto exit;
+	}
+
+	printf("\nPIN changed successfully\n");
+
+	exit:
+		return err;
+}
 
 /*
  * Function : login()
@@ -485,7 +560,22 @@ CK_RV login()
 	int pin_len = 0;
 	int option = 0;
 	CK_USER_TYPE user_type = CKU_SO;		//default login SO
-	CK_SESSION_HANDLE current_session = session_arr[session_count-1].session_handle;
+	CK_SESSION_HANDLE current_session = CKR_SESSION_HANDLE_INVALID;
+
+	/* Check if any session is opened on token */
+	if( session_count == 0)
+	{
+		printf("\n No sessions are opened on token !!!\n");
+		goto exit;
+	}
+
+	/* Display session opened */
+	display_opened_session();
+
+	/* Get session handle to login on */
+	printf("\nEnter the session into which you want to login: ");
+	scanf("%d",&option);
+	current_session = session_arr[option-1].session_handle;
 
 	printf("\nSecurity Officer[0] or Normal User[1]: ");
 	scanf("%d",&option);
@@ -497,6 +587,7 @@ CK_RV login()
 
 	printf("\nEnter PIN: ");
 
+	getchar();
 	read_pin(pin,&pin_len);
 
 	err = p11_functions->C_Login(current_session,(CK_USER_TYPE) user_type,pin,pin_len);
@@ -602,7 +693,8 @@ int read_pin(unsigned char *pin,unsigned int *pin_len)
 {
 	struct termios terminal_ds, prev_term_ds;
 	int err = EXIT_SUCCESS;
-	char ch;
+	int ch;
+
 	/* Retrieve current terminal settings */
 	err = tcgetattr(STDIN_FILENO,&terminal_ds);
 	if(err == -1)
@@ -624,10 +716,6 @@ int read_pin(unsigned char *pin,unsigned int *pin_len)
 	}
 
 	fflush(stdout);
-
-	/* To pause to get pin */
-	getchar();
-
 	while( ((ch = getchar()) != '\n') )
 	{
 		pin[*pin_len] = ch;
@@ -675,6 +763,17 @@ void display_opened_session()
 	}
 }
 
+/*
+ *
+ */
+
+CK_RV mechanism_list()
+{
+	CR_RV err = CKR_OK;
+
+	return err;
+}
+
 void display_menu()
 {
 	printf("\n--------------------- PKCS11 eToken Utility --------------------\n");
@@ -689,6 +788,7 @@ void display_menu()
 	printf("\n9.Display list of opened sessions\n");
 	printf("\n10.Display menu\n");
 	printf("\n11.Logout from a session \n");
+	printf("\n12.Change SO/Normal User PIN \n");
 	printf("\n-----------------------------------------------------------------\n");
 }
 
@@ -930,6 +1030,16 @@ int main()
 			if( err )
 			{
 				logger(err,"logout() failed",__LINE__,__FILE__,__FUNCTION__);
+				goto exit;
+			}
+			break;
+		}
+		case 12:
+		{
+			err = change_pin();
+			if( err )
+			{
+				logger(err,"change_pin() failed",__LINE__,__FILE__,__FUNCTION__);
 				goto exit;
 			}
 			break;
