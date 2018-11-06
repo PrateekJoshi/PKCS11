@@ -763,15 +763,264 @@ void display_opened_session()
 	}
 }
 
+
+
+char* get_mechanism_type(CK_MECHANISM_TYPE mechanism)
+{
+	switch( mechanism)
+	{
+	case 0x00000000:
+		return "CKM_RSA_PKCS_KEY_PAIR_GEN";
+		break;
+	case 0x00000001:
+		return "CKM_RSA_PKCS";
+		break;
+	case 0x00000002:
+		return "CKM_RSA_9796";
+		break;
+	case 0x00000003:
+		return "CKM_RCKM_RSA_X_509";
+		break;
+	case 0x00000004:
+		return "CKM_MD2_RSA_PKCS";
+		break;
+	case 0x00000005:
+		return "CKM_MD5_RSA_PKCS";
+		break;
+	case 0x00000006:
+		return "CKM_SHA1_RSA_PKCS";
+		break;
+	case 0x00000007:
+		return "CKM_RIPEMD128_RSA_PKCS";
+		break;
+	case 0x00000008:
+		return "CKM_RIPEMD160_RSA_PKCS";
+		break;
+	case 0x00000009:
+		return "CKM_RSA_PKCS_OAEP";
+		break;
+	case 0x0000000A:
+		return "CKM_RSA_X9_31_KEY_PAIR_GEN";
+		break;
+	case 0x0000000B:
+		return "CKM_RSA_X9_31";
+		break;
+	case 0x0000000C:
+		return "CKM_SHA1_RSA_X9_31";
+		break;
+	case 0x0000000D:
+		return "CKM_RSA_PKCS_PSS";
+		break;
+	case 0x0000000E:
+		return "CKM_SHA1_RSA_PKCS_PSS";
+		break;
+	case 0x00000010:
+		return "CKM_DSA_KEY_PAIR_GEN";
+		break;
+	case 0x00000011:
+		return "CKM_DSA";
+		break;
+	case 0x00000012:
+		return "CKM_DSA_SHA1";
+		break;
+	case 0x00000013:
+		return "CKM_DSA_FIPS_G_GEN";
+		break;
+	case 0x00000014:
+		return "CKM_DSA_SHA224";
+		break;
+	case 0x00000015:
+		return "CKM_DSA_SHA256";
+		break;
+	case 0x00000016:
+		return "CKM_DSA_SHA384";
+		break;
+	case 0x00000017:
+		return "CKM_DSA_SHA512";
+		break;
+	case 0x00000020:
+		return "CKM_DH_PKCS_KEY_PAIR_GEN";
+		break;
+	case 0x00000021:
+		return "CKM_DH_PKCS_DERIVE";
+		break;
+	case 0x00000030:
+		return "CKM_X9_42_DH_KEY_PAIR_GEN";
+		break;
+	case 0x00000031:
+		return "CKM_X9_42_DH_DERIVE";
+		break;
+	case 0x00000032:
+		return "CKM_X9_42_DH_HYBRID_DERIVE";
+		break;
+	case 0x00000033:
+		return "CKM_X9_42_MQV_DERIVE";
+		break;
+	case 0x00000040:
+		return "CKM_SHA256_RSA_PKCS";
+		break;
+	case 0x00000041:
+		return "CKM_SHA384_RSA_PKCS";
+		break;
+	case 0x00000042:
+		return "CKM_SHA512_RSA_PKCS";
+		break;
+	case 0x00000043:
+		return "CKM_SHA256_RSA_PKCS_PSS";
+		break;
+	case 0x00000044:
+		return "CKM_SHA384_RSA_PKCS_PSS";
+		break;
+	case 0x00000045:
+		return "CKM_SHA512_RSA_PKCS_PSS";
+		break;
+	case 0x00000046:
+		return "CKM_SHA224_RSA_PKCS";
+		break;
+	case 0x00000047:
+		return "CKM_SHA224_RSA_PKCS_PSS";
+		break;
+	case 0x00000048:
+		return "CKM_SHA512_224";
+		break;
+	case 0x00000049:
+		return "CKM_SHA512_224_HMAC";
+		break;
+	case 0x0000004A:
+		return "CKM_SHA512_224_HMAC_GENERAL";
+		break;
+	case 0x0000004B:
+		return "CKM_SHA512_224_KEY_DERIVATION";
+		break;
+	case 0x0000004C:
+		return "CKM_SHA512_256";
+		break;
+	case 0x0000004D:
+		return "CKM_SHA512_256_HMAC";
+		break;
+	case 0x0000004E:
+		return "CKM_SHA512_256_HMAC_GENERAL";
+		break;
+	case 0x0000004F:
+		return "CKM_SHA512_256_KEY_DERIVATION";
+		break;
+	case 0x00000050:
+		return "CKM_SHA512_T";
+		break;
+	case 0x00000051:
+		return "CKM_SHA512_T_HMAC";
+		break;
+	case 0x00000052:
+		return "CKM_SHA512_T_HMAC_GENERAL";
+		break;
+	case 0x00000053:
+		return "CKM_SHA512_T_KEY_DERIVATION";
+		break;
+	case 0x00000100:
+		return "CKM_RC2_KEY_GEN";
+		break;
+	case 0x00000101:
+		return "CKM_RC2_ECB";
+		break;
+	case 0x00000102:
+		return "CKM_RC2_CBC";
+		break;
+	case 0x00000103:
+		return "CKM_RC2_MAC";
+		break;
+	case 0x00000104:
+		return "CKM_RC2_MAC_GENERAL";
+		break;
+	case 0x00000105:
+		return "CKM_RC2_CBC_PAD";
+		break;
+	case 0x00000110:
+		return "CKM_RC4_KEY_GEN";
+		break;
+	case 0x00000111:
+		return "CKM_RC4";
+		break;
+	case 0x00000120:
+		return "CKM_DES_KEY_GEN";
+		break;
+	case 0x00000121:
+		return "CKM_DES_ECB";
+		break;
+	case 0x00000122:
+		return "CKM_DES_CBC";
+		break;
+	case 0x00000123:
+		return "CKM_DES_MAC";
+		break;
+	case 0x00000124:
+		return "CKM_DES_MAC_GENERAL";
+		break;
+	case 0x00000125:
+		return "CKM_DES_CBC_PAD";
+		break;
+	case 0x00000130:
+		return "CKM_DES2_KEY_GEN";
+		break;
+	}
+	return "EMPTY";
+}
+
 /*
  *
  */
 
 CK_RV mechanism_list()
 {
-	CR_RV err = CKR_OK;
+	CK_RV err = CKR_OK;
+	CK_SLOT_ID slot_id = 0UL;
+	CK_ULONG no_of_mechanism = 0;
+	CK_MECHANISM_TYPE_PTR mechanism_list = NULL ;
+	CK_MECHANISM_INFO mechanism_info;
 
-	return err;
+	printf("\nEnter the slot id of the token to get mechanisms from: ");
+	scanf("%ld",&slot_id);
+
+	/* First get number of mechanism supported by token */
+	err = p11_functions->C_GetMechanismList(slot_id,NULL_PTR,&no_of_mechanism);
+	if( err )
+	{
+		logger(err, "C_GetMechanismList() failed", __LINE__, __FILE__,__FUNCTION__);
+		goto exit;
+	}
+
+	/* If success , then allocate memory to hold mechanism list supported by token */
+	if( no_of_mechanism > 0 )
+	{
+		mechanism_list = (CK_MECHANISM_TYPE_PTR) malloc(no_of_mechanism * sizeof(CK_MECHANISM_TYPE));
+		if( mechanism_list == NULL)
+		{
+			printf("\nERROR: Unable to allocate memory to mechanism list !!! \n");
+			goto exit;
+		}
+
+		/* Get token mechanism supported */
+		err = p11_functions->C_GetMechanismList(slot_id,mechanism_list,&no_of_mechanism);
+		if( err )
+		{
+			logger(err, "C_GetMechanismList() failed", __LINE__, __FILE__,__FUNCTION__);
+			goto exit;
+		}
+	}
+	else
+	{
+		printf("\nERROR: No mechanism supported by token!!!\n");
+		goto exit;
+	}
+
+	/* Print mechanism supported */
+	for( CK_ULONG i = 0; i < no_of_mechanism; i++)
+	{
+		//err = get_mechanism_info(slot_id,mechanism_list[i],&mechanism_info);
+		printf("\n%ld> %s \n",i+1,get_mechanism_type(mechanism_list[i]));
+	}
+
+	exit:
+		return err;
 }
 
 void display_menu()
@@ -789,6 +1038,7 @@ void display_menu()
 	printf("\n10.Display menu\n");
 	printf("\n11.Logout from a session \n");
 	printf("\n12.Change SO/Normal User PIN \n");
+	printf("\n13.List mechanism type supported by token \n");
 	printf("\n-----------------------------------------------------------------\n");
 }
 
@@ -1037,6 +1287,16 @@ int main()
 		case 12:
 		{
 			err = change_pin();
+			if( err )
+			{
+				logger(err,"change_pin() failed",__LINE__,__FILE__,__FUNCTION__);
+				goto exit;
+			}
+			break;
+		}
+		case 13:
+		{
+			err = mechanism_list();
 			if( err )
 			{
 				logger(err,"change_pin() failed",__LINE__,__FILE__,__FUNCTION__);
