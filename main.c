@@ -20,6 +20,9 @@
 #define MAX_SESSION_COUNT  10
 #define MAX_PWD_LEN  200
 #define MAX_LABEL_LEN  200
+#define MAX_OBJECT_VAL 2000
+#define MAX_DATA_VAL 1000
+#define MAX_KEY_VAL 32
 #define APP_NAME "eTokenUtility"
 #define APP_ERR -1
 
@@ -329,6 +332,36 @@ CK_RV open_session(CK_SLOT_ID slot_id)
 		return err;
 }
 
+/*
+ * Function : get_session_handle()
+ * Description : Get a session handle from list of opened sessions
+ */
+CK_RV get_session_handle(CK_SESSION_HANDLE_PTR current_session)
+{
+	CK_RV err = CKR_OK;
+	int option = 0;
+
+	/* Check if any session is opened on token */
+	if( session_count == 0)
+	{
+		err = CKR_SESSION_HANDLE_INVALID;
+		printf("\n No sessions are opened on token !!!\n");
+		goto exit;
+	}
+
+	/* Display session opened */
+	display_opened_session();
+
+	/* Get session handle to login on */
+	printf("\nEnter the session into which you want to login: ");
+	scanf("%d",&option);
+	*current_session = session_arr[option-1].session_handle;
+
+	exit:
+		return err;
+}
+
+
 
 /*
  * Function : close_session()
@@ -359,7 +392,7 @@ CK_RV close_session()
 		printf("\nEnter the slot id of the session to close: ");
 		scanf("%ld",&slot_id);
 
-		/* Closes all sessions an application has with a token. slot_id specifies the token’s slot. */
+		/* Closes all sessions an application has with a token. slot_id specifies the tokenï¿½s slot. */
 		err = p11_functions->C_CloseAllSessions(slot_id);
 		if( err )
 		{
@@ -472,6 +505,14 @@ CK_RV init_pin()
 			goto exit;
 		}
 
+		/* Check if session read only or SO is logged in */
+		if ( err == CKR_SESSION_READ_ONLY )
+		{
+			err = CKR_OK;
+			printf("\nERROR: Session read only or SO not logged in !!!\n");
+			goto exit;
+		}
+
 		logger(err, "C_InitPIN() failed", __LINE__, __FILE__,__FUNCTION__);
 		goto exit;
 	}
@@ -553,14 +594,13 @@ CK_RV change_pin()
  * Function : login()
  * Description : Login to a SO or Normal user session
  */
-CK_RV login()
+CK_RV login(CK_SESSION_HANDLE_PTR current_session)
 {
 	CK_RV err = CKR_OK;
 	CK_BYTE pin[MAX_PWD_LEN]={0};
 	int pin_len = 0;
 	int option = 0;
 	CK_USER_TYPE user_type = CKU_SO;		//default login SO
-	CK_SESSION_HANDLE current_session = CKR_SESSION_HANDLE_INVALID;
 
 	/* Check if any session is opened on token */
 	if( session_count == 0)
@@ -575,7 +615,7 @@ CK_RV login()
 	/* Get session handle to login on */
 	printf("\nEnter the session into which you want to login: ");
 	scanf("%d",&option);
-	current_session = session_arr[option-1].session_handle;
+	*current_session = session_arr[option-1].session_handle;
 
 	printf("\nSecurity Officer[0] or Normal User[1]: ");
 	scanf("%d",&option);
@@ -590,7 +630,7 @@ CK_RV login()
 	getchar();
 	read_pin(pin,&pin_len);
 
-	err = p11_functions->C_Login(current_session,(CK_USER_TYPE) user_type,pin,pin_len);
+	err = p11_functions->C_Login(*current_session,(CK_USER_TYPE) user_type,pin,pin_len);
 	if( err )
 	{
 		/* If invalid PIN */
@@ -622,6 +662,14 @@ CK_RV login()
 		{
 			err = CKR_OK;
 			printf("\nSession not opened !!!\n");
+			goto exit;
+		}
+
+		/* Check if user is not initialized */
+		if( err == CKR_USER_PIN_NOT_INITIALIZED )
+		{
+			err = CKR_OK;
+			printf("\nERROR: User is not initialized !!!\n");
 			goto exit;
 		}
 
@@ -741,8 +789,6 @@ int read_pin(unsigned char *pin,unsigned int *pin_len)
 }
 
 
-
-
 /*
  * Function : display_opened_session()
  * Description : Display info of opened sessions on token
@@ -764,7 +810,10 @@ void display_opened_session()
 }
 
 
-
+/*
+ * Function : get_mechanism_type(CK_MECHANISM_TYPE mechanism)
+ * Description : Map mechanism type in hex to user readable mechanism name
+ */
 char* get_mechanism_type(CK_MECHANISM_TYPE mechanism)
 {
 	switch( mechanism)
@@ -961,14 +1010,56 @@ char* get_mechanism_type(CK_MECHANISM_TYPE mechanism)
 	case 0x00000130:
 		return "CKM_DES2_KEY_GEN";
 		break;
+	case 0x00000131:
+		return "CKM_DES3_KEY_GEN";
+		break;
+	case 0x00000132:
+		return "CKM_DES3_ECB";
+		break;
+	case 0x00000133:
+		return "CKM_DES3_CBC";
+		break;
+	case 0x00000134:
+		return "CKM_DES3_MAC";
+		break;
+	case 0x00000135:
+		return "CKM_DES3_MAC_GENERAL";
+		break;
+	case 0x00000136:
+		return "CKM_DES3_CBC_PAD";
+		break;
+	case 0x00000140:
+		return "CKM_CDMF_KEY_GEN";
+		break;
+	case 0x00000141:
+		return "CKM_CDMF_ECB";
+		break;
+	case 0x00000142:
+		return "CKM_CDMF_CBC";
+		break;
+	case 0x00000143:
+		return "CKM_CDMF_MAC";
+		break;
+	case 0x00000144:
+		return "CKM_CDMF_MAC_GENERAL";
+		break;
+	case 0x00000145:
+		return "CKM_CDMF_CBC_PAD";
+		break;
+	case 0x00000150:
+		return "CKM_DES_OFB64";
+		break;
+	case 0x00000151:
+		return "CKM_DES_OFB8";
+		break;
 	}
 	return "EMPTY";
 }
 
 /*
- *
+ * Function : mechanism_list()
+ * Description : List the mechanisms supported by a token
  */
-
 CK_RV mechanism_list()
 {
 	CK_RV err = CKR_OK;
@@ -1023,6 +1114,257 @@ CK_RV mechanism_list()
 		return err;
 }
 
+/*
+ * Function :  create_object()
+ * Description : Create a object on token. Can be Data object, Key Object or Certificate Object
+ */
+CK_RV create_object()
+{
+	CK_RV err = CKR_OK;
+
+	/* Session handle */
+	CK_SESSION_HANDLE session_handle = CKR_SESSION_HANDLE_INVALID;
+
+	/* Object handles */
+
+	CK_OBJECT_HANDLE cert_handle_data = CKR_OBJECT_HANDLE_INVALID;
+
+	/* Object class */
+	CK_OBJECT_CLASS cert_class = CKO_CERTIFICATE;
+	CK_BBOOL true = CK_TRUE;
+	int object_type = 1;
+
+	/* Select session to do operation on */
+	err = get_session_handle(&session_handle);
+	if ( err )
+	{
+		/* If got invalid session */
+		if( err == CKR_SESSION_HANDLE_INVALID )
+		{
+			err = CKR_OK;
+			printf("\nERROR: Invalid session session \n");
+			goto exit;
+		}
+		logger(err, "get_session_handle() failed", __LINE__, __FILE__,__FUNCTION__);
+		goto exit;
+	}
+
+	printf("\nEnter type of object to create: [1] Data Object [2] Key Object");
+	scanf("%s",object_type);
+
+	/* Create object based on object type */
+	switch(object_type)
+	{
+	/* Data object */
+	case 1:
+	{
+		CK_OBJECT_CLASS data_class = CKO_DATA;									//object class
+		CK_OBJECT_HANDLE object_handle_data = CKR_OBJECT_HANDLE_INVALID;		//object handle
+
+		/* Get object label */
+		CK_BYTE object_label[MAX_LABEL_LEN] = {0};
+		printf("\nEnter object label: ");
+		scanf("%s",object_label);
+
+		/* Get object value */
+		CK_BYTE data_value[MAX_DATA_VAL] = { 0 };
+		printf("\nEnter data object value: ");
+		scanf("%s", data_value);
+
+		/* no of attributes in object*/
+		CK_ULONG no_attribute_data = 4;
+
+		/* Template for data attribute */
+		CK_ATTRIBUTE data_template[] = {
+				{ CKA_CLASS, &data_class, sizeof(data_class) },
+				{ CKA_TOKEN, &true, sizeof(true) },
+				{ CKA_VALUE, data_value, sizeof(data_value) },
+				{ CKA_LABEL, object_label, sizeof(object_label)}
+		};
+
+		/* Create data object */
+		err = p11_functions->C_CreateObject(session_handle, data_template,no_attribute_data, &object_handle_data);
+
+		break;
+	}
+	/* Key Object */
+	case 2:
+	{
+		CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
+		CK_OBJECT_HANDLE key_handle_data = CKR_OBJECT_HANDLE_INVALID;
+		CK_BBOOL false = CK_FALSE;
+		CK_BBOOL true = CK_TRUE;
+		CK_ULONG key_length = 0;
+		CK_KEY_TYPE key_type = CKK_DES3;
+
+		/* Get object label */
+		CK_BYTE key_label[MAX_LABEL_LEN] = {0};
+		printf("\nEnter key label: ");
+		scanf("%s",key_label);
+
+		/* Get key object value */
+		CK_BYTE key_value[MAX_KEY_VAL] = { 0 };
+		printf("\nEnter key value: ");
+		scanf("%s", key_value);
+
+		/* no of attributes in object*/
+		CK_ULONG no_attribute_key = 16;
+
+		/* Template for key attribute */
+		CK_ATTRIBUTE key_template[] = {
+				{ CKA_CLASS, &key_class, sizeof(key_class) },
+				{ CKA_TOKEN, &false, sizeof(false) },			// session or token stored
+				{ CKA_SENSITIVE, &false, sizeof(false)},		//actual value of the secret key is not exposed by calling C_GetAttribute
+				{ CKA_PRIVATE,   &false, sizeof(false)},		//When the CKA_PRIVATE attribute is CK_TRUE, a user may not access the object until the user has been authenticated to the token.
+				{ CKA_ENCRYPT,   &false, sizeof(false)},		//If key supports encryption
+				{ CKA_DECRYPT,   &false, sizeof(false)},		//If key supports decryption
+				{ CKA_SIGN,      &false, sizeof(false)},		//If key supports signing
+				{ CKA_VERIFY,    &false, sizeof(false)},		//If key supports verification
+				{ CKA_WRAP,      &false, sizeof(false)},		//If can be used to wrap other keys
+				{ CKA_UNWRAP,    &false, sizeof(false)},		//If can be used to unwrap other keys
+				{ CKA_DERIVE,    &false, sizeof(false)},		//If other keys can be derived using it
+				{ CKA_KEY_TYPE,  &false, sizeof(false)},		//Type of key (AES, DES2, DES3, RSA , etc)
+				{ CKA_EXTRACTABLE,&false, sizeof(false)},
+				{ CKA_VALUE_LEN, &false, sizeof(key_length)},
+				{ CKA_VALUE, key_value, sizeof(key_value) },
+				{ CKA_LABEL, key_label, sizeof(key_label)}
+		};
+
+		/* Prompt for key attribute */
+		printf("\nEnter key attributes: [0] FALSE [1] TRUE \n");
+		printf("Is token stored: ");
+		scanf("%d",key_template[1].pValue);
+		printf("\nIs key sensitive: ");
+		scanf("%d",key_template[2].pValue);
+		printf("\nIs key private: ");
+		scanf("%d",key_template[3].pValue);
+		printf("\nIs key can be used to encrypt: ");
+		scanf("%d",key_template[4].pValue);
+		printf("\nIs key can be used to decryption: ");
+		scanf("%d",key_template[5].pValue);
+		printf("\nIs key can be used for verification: ");
+		scanf("%d",key_template[6].pValue);
+		printf("\nIs key can be used to wrap other keys: ");
+		scanf("%d",key_template[7].pValue);
+		printf("\nIs key can be used to unwrap other keys: ");
+		scanf("%d",key_template[8].pValue);
+		printf("\nIs key can be used to derive other keys: ");
+		scanf("%d",key_template[9].pValue);
+		printf("\nType of key: ");
+		//display_key_types();
+		scanf("%d",key_template[9].pValue);
+
+		/* Create Key object */
+		err = p11_functions->C_CreateObject(session_handle, key_template,no_attribute_key, &key_handle_data);
+		break;
+	}
+	case 3:
+		break;
+	default:
+		break;
+	}
+
+	/* Check for errors */
+	if (err)
+	{
+		/* If only read only session */
+		if (err == CKR_SESSION_READ_ONLY)
+		{
+			err = CKR_OK;
+			printf("\nERROR: Session read only !!! \n");
+			goto exit;
+		}
+
+		logger(err, "C_CreateObject() failed", __LINE__, __FILE__, __FUNCTION__);
+		goto exit;
+	}
+
+	exit:
+		return err;
+}
+
+/*
+ * Function : display_all_objects(CK_SESSION_HANDLE session_handle)
+ * Description : Display list of objects stored on Token
+ */
+CK_RV display_all_objects(CK_SESSION_HANDLE session_handle)
+{
+	CK_RV err = CKR_OK;
+	CK_ATTRIBUTE_PTR ptr_template = NULL;
+	CK_ULONG template_len = 0;
+	CK_ULONG object_count = 0;
+	CK_ULONG total_object_count = 0;
+	CK_OBJECT_HANDLE object_handle = CKR_OBJECT_HANDLE_INVALID;
+	CK_ULONG max_handles = 1;
+	CK_ATTRIBUTE template[2] ;
+	CK_BYTE object_label[MAX_LABEL_LEN] = {0};
+	CK_BYTE object_value[MAX_OBJECT_VAL] = {0};
+	int counter = 1;
+
+	/* Initializes a search for token and session objects that match a template
+	 * NOTE: We have passed ptr_template=NULL and template_len=0 to match
+	 * all template.
+	 */
+	err = p11_functions->C_FindObjectsInit(session_handle, ptr_template, template_len);
+	if( err )
+	{
+		logger(err, "C_FindObjectsInit() failed", __LINE__, __FILE__,__FUNCTION__);
+		goto exit;
+	}
+
+	/* Continues a search for token and session objects that match a template, obtaining additional object handles */
+	while (TRUE)
+	{
+		err = p11_functions->C_FindObjects(session_handle,&object_handle,1,&object_count);
+		if( err )
+		{
+			logger(err, "C_FindObjects() failed", __LINE__, __FILE__,__FUNCTION__);
+			goto exit;
+		}
+
+		/* increment total objects found */
+		total_object_count += object_count;
+
+		/* If traversed all objects to find */
+		if( object_count == 0 )
+		{
+			break;
+		}
+
+		/* Create template to get object attribute
+		 * We want to find object label , thus we set template.type to CKA_LABEL.
+		 * You can set type of attribute and get attribute values accordingly.
+		 */
+		template[0].type = CKA_LABEL;
+		template[0].pValue = (CK_VOID_PTR) object_label;		/* template.pValue -- points to --> object_label (label value will be written here) */
+		template[0].ulValueLen = sizeof(object_label);
+
+		template[1].type = CKA_VALUE;
+		template[1].pValue = (CK_VOID_PTR) object_value;
+		template[1].ulValueLen = sizeof(object_value);
+
+		for( CK_ULONG i=0; i < object_count ; i++)
+		{
+			/* Obtains the value of one or more attributes of an object */
+			err = p11_functions->C_GetAttributeValue(session_handle,object_handle,template,2);
+			if( err )
+			{
+				logger(err, "C_GetAttributeValue() failed", __LINE__, __FILE__,__FUNCTION__);
+				goto exit;
+			}
+			printf("%d > handle: %ld label: %s \n",counter++,object_handle,template[0].pValue);
+			printf("Value: %s\n",template[1].pValue);
+
+			memset(object_label,0,sizeof(object_label));			//clear object_label buffer so that on next find, a new label can be stored
+			memset(object_value,0,sizeof(object_value));
+		}
+	}
+
+	printf("\nTotal Object Count: %ld \n", total_object_count);
+	exit:
+		return err;
+}
+
 void display_menu()
 {
 	printf("\n--------------------- PKCS11 eToken Utility --------------------\n");
@@ -1039,6 +1381,8 @@ void display_menu()
 	printf("\n11.Logout from a session \n");
 	printf("\n12.Change SO/Normal User PIN \n");
 	printf("\n13.List mechanism type supported by token \n");
+	printf("\n14.Create an object on token \n");
+	printf("\n15.Display all objects on token \n");
 	printf("\n-----------------------------------------------------------------\n");
 }
 
@@ -1255,7 +1599,8 @@ int main()
 		}
 		case 8:
 		{
-			err = login();
+			CK_SESSION_HANDLE current_session = CKR_SESSION_HANDLE_INVALID;
+			err = login(&current_session);
 			if( err )
 			{
 				logger(err,"login() failed",__LINE__,__FILE__,__FUNCTION__);
@@ -1300,6 +1645,39 @@ int main()
 			if( err )
 			{
 				logger(err,"change_pin() failed",__LINE__,__FILE__,__FUNCTION__);
+				goto exit;
+			}
+			break;
+		}
+		case 14:
+		{
+			err = create_object();
+			if( err )
+			{
+				logger(err,"create_object() failed",__LINE__,__FILE__,__FUNCTION__);
+				goto exit;
+			}
+			break;
+		}
+		case 15:
+		{
+			CK_SESSION_HANDLE session_handle = CKR_SESSION_HANDLE_INVALID;
+			err = get_session_handle(&session_handle);
+			if( err )
+			{
+				if( err == CKR_SESSION_HANDLE_INVALID )
+				{
+					err = CKR_OK;
+					printf("\nERROR: Invalid session handle or no session opened\n");
+					continue;
+				}
+				logger(err,"get_session_handle() failed",__LINE__,__FILE__,__FUNCTION__);
+				goto exit;
+			}
+			err = display_all_objects(session_handle);
+			if( err )
+			{
+				logger(err,"display_all_objects() failed",__LINE__,__FILE__,__FUNCTION__);
 				goto exit;
 			}
 			break;
