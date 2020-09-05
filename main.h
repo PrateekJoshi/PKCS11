@@ -8,6 +8,7 @@
 #ifndef MAIN_H_
 #define MAIN_H_
 
+#define AES_IV_LEN 16
 
 /* Function prototypes */
 int read_pin(unsigned char *pin,unsigned int *pin_len);

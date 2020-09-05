@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include "pkcs11.h"
 #include <dlfcn.h>
 #include <string.h>
@@ -1115,173 +1116,55 @@ CK_RV mechanism_list()
 }
 
 /*
- * Function :  create_object()
- * Description : Create a object on token. Can be Data object, Key Object or Certificate Object
+ * Function :  generate_key()
+ * Description : Generate a key. For now only AES key generation is supported.
  */
-CK_RV create_object()
+CK_RV generate_key(CK_SESSION_HANDLE session_handle)
 {
-	CK_RV err = CKR_OK;
+	CK_RV  err = CKR_OK;
+	CK_MECHANISM mechanism;
+	CK_ULONG	keylen = 32;
+	CK_OBJECT_CLASS		class = CKO_SECRET_KEY;
+	CK_KEY_TYPE			keyType = CKK_AES;
+	CK_CHAR				label_aes[] = "AES_KEY";
+	CK_OBJECT_HANDLE	key_handle = 0;
+	CK_BBOOL			true = CK_TRUE;
 
-	/* Session handle */
-	CK_SESSION_HANDLE session_handle = CKR_SESSION_HANDLE_INVALID;
+	/* Key template */
+	CK_ATTRIBUTE template_aes[] = {
+		{CKA_CLASS,      &class,        sizeof(class)   },
+		{CKA_KEY_TYPE,   &keyType,      sizeof(keyType) },
+		{CKA_TOKEN,      &true,         sizeof(CK_BBOOL)},
+		{CKA_LABEL,      label_aes,     sizeof(label_aes) -1},	//remove null char
+		{CKA_ENCRYPT,    &true,         sizeof(CK_BBOOL)},
+		{CKA_PRIVATE,    &true,         sizeof(CK_BBOOL)},
+		{CKA_SENSITIVE,  &true,         sizeof(CK_BBOOL)},
+		{CKA_ENCRYPT,    &true,         sizeof(CK_BBOOL)},
+		{CKA_DECRYPT,    &true,         sizeof(CK_BBOOL)},
+		{CKA_WRAP,       &true,         sizeof(CK_BBOOL)},
+		{CKA_UNWRAP,     &true,         sizeof(CK_BBOOL)},
+		{CKA_EXTRACTABLE,&true,        sizeof(CK_BBOOL)},
+		{CKA_VALUE_LEN,	 &keylen,		sizeof(keylen)	}
+		};
 
-	/* Object handles */
 
-	CK_OBJECT_HANDLE cert_handle_data = CKR_OBJECT_HANDLE_INVALID;
+	mechanism.mechanism = CKM_AES_KEY_GEN;
+	mechanism.pParameter = NULL;
+	mechanism.ulParameterLen = 0;
 
-	/* Object class */
-	CK_OBJECT_CLASS cert_class = CKO_CERTIFICATE;
-	CK_BBOOL true = CK_TRUE;
-	int object_type = 1;
-
-	/* Select session to do operation on */
-	err = get_session_handle(&session_handle);
-	if ( err )
+	/* Generate the key */
+	err = C_GenerateKey(session_handle, &mechanism, template_aes,  sizeof(template_aes)/sizeof(CK_ATTRIBUTE), &key_handle);
+	if( err )
 	{
-		/* If got invalid session */
-		if( err == CKR_SESSION_HANDLE_INVALID )
-		{
-			err = CKR_OK;
-			printf("\nERROR: Invalid session session \n");
-			goto exit;
-		}
-		logger(err, "get_session_handle() failed", __LINE__, __FILE__,__FUNCTION__);
+		logger(err, "C_GenerateKey() failed", __LINE__, __FILE__,__FUNCTION__);
 		goto exit;
 	}
 
-	printf("\nEnter type of object to create: [1] Data Object [2] Key Object");
-	scanf("%s",object_type);
-
-	/* Create object based on object type */
-	switch(object_type)
-	{
-	/* Data object */
-	case 1:
-	{
-		CK_OBJECT_CLASS data_class = CKO_DATA;									//object class
-		CK_OBJECT_HANDLE object_handle_data = CKR_OBJECT_HANDLE_INVALID;		//object handle
-
-		/* Get object label */
-		CK_BYTE object_label[MAX_LABEL_LEN] = {0};
-		printf("\nEnter object label: ");
-		scanf("%s",object_label);
-
-		/* Get object value */
-		CK_BYTE data_value[MAX_DATA_VAL] = { 0 };
-		printf("\nEnter data object value: ");
-		scanf("%s", data_value);
-
-		/* no of attributes in object*/
-		CK_ULONG no_attribute_data = 4;
-
-		/* Template for data attribute */
-		CK_ATTRIBUTE data_template[] = {
-				{ CKA_CLASS, &data_class, sizeof(data_class) },
-				{ CKA_TOKEN, &true, sizeof(true) },
-				{ CKA_VALUE, data_value, sizeof(data_value) },
-				{ CKA_LABEL, object_label, sizeof(object_label)}
-		};
-
-		/* Create data object */
-		err = p11_functions->C_CreateObject(session_handle, data_template,no_attribute_data, &object_handle_data);
-
-		break;
-	}
-	/* Key Object */
-	case 2:
-	{
-		CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
-		CK_OBJECT_HANDLE key_handle_data = CKR_OBJECT_HANDLE_INVALID;
-		CK_BBOOL false = CK_FALSE;
-		CK_BBOOL true = CK_TRUE;
-		CK_ULONG key_length = 0;
-		CK_KEY_TYPE key_type = CKK_DES3;
-
-		/* Get object label */
-		CK_BYTE key_label[MAX_LABEL_LEN] = {0};
-		printf("\nEnter key label: ");
-		scanf("%s",key_label);
-
-		/* Get key object value */
-		CK_BYTE key_value[MAX_KEY_VAL] = { 0 };
-		printf("\nEnter key value: ");
-		scanf("%s", key_value);
-
-		/* no of attributes in object*/
-		CK_ULONG no_attribute_key = 16;
-
-		/* Template for key attribute */
-		CK_ATTRIBUTE key_template[] = {
-				{ CKA_CLASS, &key_class, sizeof(key_class) },
-				{ CKA_TOKEN, &false, sizeof(false) },			// session or token stored
-				{ CKA_SENSITIVE, &false, sizeof(false)},		//actual value of the secret key is not exposed by calling C_GetAttribute
-				{ CKA_PRIVATE,   &false, sizeof(false)},		//When the CKA_PRIVATE attribute is CK_TRUE, a user may not access the object until the user has been authenticated to the token.
-				{ CKA_ENCRYPT,   &false, sizeof(false)},		//If key supports encryption
-				{ CKA_DECRYPT,   &false, sizeof(false)},		//If key supports decryption
-				{ CKA_SIGN,      &false, sizeof(false)},		//If key supports signing
-				{ CKA_VERIFY,    &false, sizeof(false)},		//If key supports verification
-				{ CKA_WRAP,      &false, sizeof(false)},		//If can be used to wrap other keys
-				{ CKA_UNWRAP,    &false, sizeof(false)},		//If can be used to unwrap other keys
-				{ CKA_DERIVE,    &false, sizeof(false)},		//If other keys can be derived using it
-				{ CKA_KEY_TYPE,  &false, sizeof(false)},		//Type of key (AES, DES2, DES3, RSA , etc)
-				{ CKA_EXTRACTABLE,&false, sizeof(false)},
-				{ CKA_VALUE_LEN, &false, sizeof(key_length)},
-				{ CKA_VALUE, key_value, sizeof(key_value) },
-				{ CKA_LABEL, key_label, sizeof(key_label)}
-		};
-
-		/* Prompt for key attribute */
-		printf("\nEnter key attributes: [0] FALSE [1] TRUE \n");
-		printf("Is token stored: ");
-		scanf("%d",key_template[1].pValue);
-		printf("\nIs key sensitive: ");
-		scanf("%d",key_template[2].pValue);
-		printf("\nIs key private: ");
-		scanf("%d",key_template[3].pValue);
-		printf("\nIs key can be used to encrypt: ");
-		scanf("%d",key_template[4].pValue);
-		printf("\nIs key can be used to decryption: ");
-		scanf("%d",key_template[5].pValue);
-		printf("\nIs key can be used for verification: ");
-		scanf("%d",key_template[6].pValue);
-		printf("\nIs key can be used to wrap other keys: ");
-		scanf("%d",key_template[7].pValue);
-		printf("\nIs key can be used to unwrap other keys: ");
-		scanf("%d",key_template[8].pValue);
-		printf("\nIs key can be used to derive other keys: ");
-		scanf("%d",key_template[9].pValue);
-		printf("\nType of key: ");
-		//display_key_types();
-		scanf("%d",key_template[9].pValue);
-
-		/* Create Key object */
-		err = p11_functions->C_CreateObject(session_handle, key_template,no_attribute_key, &key_handle_data);
-		break;
-	}
-	case 3:
-		break;
-	default:
-		break;
-	}
-
-	/* Check for errors */
-	if (err)
-	{
-		/* If only read only session */
-		if (err == CKR_SESSION_READ_ONLY)
-		{
-			err = CKR_OK;
-			printf("\nERROR: Session read only !!! \n");
-			goto exit;
-		}
-
-		logger(err, "C_CreateObject() failed", __LINE__, __FILE__, __FUNCTION__);
-		goto exit;
-	}
-
-	exit:
+exit:
 		return err;
 }
+
+
 
 /*
  * Function : display_all_objects(CK_SESSION_HANDLE session_handle)
@@ -1318,8 +1201,8 @@ CK_RV display_all_objects(CK_SESSION_HANDLE session_handle)
 		err = p11_functions->C_FindObjects(session_handle,&object_handle,1,&object_count);
 		if( err )
 		{
-			logger(err, "C_FindObjects() failed", __LINE__, __FILE__,__FUNCTION__);
 			goto exit;
+			logger(err, "C_FindObjects() failed", __LINE__, __FILE__,__FUNCTION__);
 		}
 
 		/* increment total objects found */
@@ -1347,7 +1230,7 @@ CK_RV display_all_objects(CK_SESSION_HANDLE session_handle)
 		{
 			/* Obtains the value of one or more attributes of an object */
 			err = p11_functions->C_GetAttributeValue(session_handle,object_handle,template,2);
-			if( err )
+			if( err && err != CKR_ATTRIBUTE_SENSITIVE )
 			{
 				logger(err, "C_GetAttributeValue() failed", __LINE__, __FILE__,__FUNCTION__);
 				goto exit;
@@ -1363,6 +1246,80 @@ CK_RV display_all_objects(CK_SESSION_HANDLE session_handle)
 	printf("\nTotal Object Count: %ld \n", total_object_count);
 	exit:
 		return err;
+}
+
+/*
+ * Function :  encrypt()
+ * Description : Encrypt data. For now only AES in CBC mode is supported
+ */
+CK_RV encrypt(CK_SESSION_HANDLE session_handle, CK_OBJECT_HANDLE key_handle, CK_BYTE *iv, CK_BYTE *data, CK_ULONG data_len, uint8_t *enc_data, CK_ULONG *enc_data_len)
+{
+	CK_RV err = CKR_OK;
+	CK_MECHANISM	mechanism;
+
+	/* Initialize mechanism for encryption */
+	mechanism.mechanism = CKM_AES_CBC;
+	mechanism.pParameter = iv;
+	mechanism.ulParameterLen = AES_IV_LEN;
+
+
+	err = p11_functions->C_EncryptInit(session_handle, &mechanism, key_handle);
+	if (err != CKR_OK)
+	{
+		logger(err, "C_EncryptInit() failed", __LINE__, __FILE__,__FUNCTION__);
+		goto exit;
+	}
+
+	err = p11_functions->C_Encrypt(session_handle, (CK_BYTE_PTR) data, data_len, (CK_BYTE_PTR) enc_data,enc_data_len);
+	if (err != CKR_OK)
+	{
+		logger(err, "C_Encrypt() failed", __LINE__, __FILE__,__FUNCTION__);
+		goto exit;
+	}
+
+exit:
+	return err;
+}
+
+/*
+ * Function :  decrypt()
+ * Description : Decrypt data. For now only AES supported in CBC mode
+ */
+CK_RV decrypt(CK_SESSION_HANDLE session_handle, CK_OBJECT_HANDLE key_handle, CK_BYTE *iv, uint8_t *enc_data, CK_ULONG enc_data_len, CK_BYTE *data, CK_ULONG *data_len)
+{
+	CK_RV err = CKR_OK;
+	CK_MECHANISM	mechanism;
+
+	/* Initialize mechanism for encryption */
+	mechanism.mechanism = CKM_AES_CBC;
+	mechanism.pParameter = iv;
+	mechanism.ulParameterLen = AES_IV_LEN;
+
+
+	err = p11_functions->C_DecryptInit(session_handle, &mechanism, key_handle);
+	if (err != CKR_OK)
+	{
+		logger(err, "C_EncryptInit() failed", __LINE__, __FILE__,__FUNCTION__);
+		goto exit;
+	}
+
+	err = p11_functions->C_Decrypt(session_handle, (CK_BYTE_PTR) enc_data, enc_data_len, (CK_BYTE_PTR) data, data_len);
+	if (err != CKR_OK)
+	{
+		logger(err, "C_Encrypt() failed", __LINE__, __FILE__,__FUNCTION__);
+		goto exit;
+	}
+
+exit:
+	return err;
+}
+
+void print_hex(CK_BYTE buffer[], CK_ULONG buffer_len)
+{
+	for (int i = 0; i < buffer_len; i++)
+	{
+	    printf("%02X", buffer[i]);
+	}
 }
 
 void display_menu()
@@ -1381,8 +1338,9 @@ void display_menu()
 	printf("\n11.Logout from a session \n");
 	printf("\n12.Change SO/Normal User PIN \n");
 	printf("\n13.List mechanism type supported by token \n");
-	printf("\n14.Create an object on token \n");
+	printf("\n14.Create an key on token \n");
 	printf("\n15.Display all objects on token \n");
+	printf("\n16.Encrypt and Decrypt a data \n");
 	printf("\n-----------------------------------------------------------------\n");
 }
 
@@ -1651,10 +1609,27 @@ int main()
 		}
 		case 14:
 		{
-			err = create_object();
+			/* Select the session */
+			CK_SESSION_HANDLE session_handle;
+			err = get_session_handle(&session_handle);
+			if (err)
+			{
+				if (err == CKR_SESSION_HANDLE_INVALID)
+				{
+					err = CKR_OK;
+					printf("\nERROR: Invalid session handle or no session opened\n");
+					continue;
+				}
+				logger(err, "get_session_handle() failed", __LINE__, __FILE__,__FUNCTION__);
+				goto exit;
+			}
+
+			/* Call generate key function */
+			err = generate_key(session_handle);
 			if( err )
 			{
-				logger(err,"create_object() failed",__LINE__,__FILE__,__FUNCTION__);
+				logger(err,"generate_key() failed",__LINE__,__FILE__,__FUNCTION__);
+				continue;
 				goto exit;
 			}
 			break;
@@ -1680,6 +1655,79 @@ int main()
 				logger(err,"display_all_objects() failed",__LINE__,__FILE__,__FUNCTION__);
 				goto exit;
 			}
+			break;
+		}
+		case 16:
+		{
+			/* Select the session */
+			CK_SESSION_HANDLE session_handle;
+			CK_OBJECT_HANDLE key_handle = CKR_OBJECT_HANDLE_INVALID;
+			CK_BYTE data[1024] = {0};
+			CK_ULONG data_len = 0;
+			CK_BYTE enc_data[1024] = {0};
+			CK_ULONG enc_data_len = 1024 ;
+			CK_BYTE iv[16] =  {0};
+
+			err = get_session_handle(&session_handle);
+			if (err)
+			{
+				if (err == CKR_SESSION_HANDLE_INVALID)
+				{
+					err = CKR_OK;
+					printf("\nERROR: Invalid session handle or no session opened\n");
+					continue;
+				}
+				logger(err, "get_session_handle() failed", __LINE__, __FILE__,__FUNCTION__);
+				goto exit;
+			}
+
+			/* Get encryption key handle */
+			printf("\nEnter encryption key handle : ");
+			scanf("%ld", &key_handle);
+
+			/* Get plaintext data */
+			printf("\nEnter data to encrypt : ");
+			scanf("%s", data);
+
+			/* Get plaintext data */
+			printf("\nEnter IV : ");
+			scanf("%s", iv);
+
+			/* get data length */
+			data_len = strnlen(data, 1024);
+
+			/* Print plaintext data in hex */
+			printf("\nPlaintext data (HEX): \n");
+			print_hex(data, data_len);
+
+			/* Call encrypt function */
+			err = encrypt(session_handle, key_handle, iv, data, data_len, enc_data, &enc_data_len);
+			if( err )
+			{
+				logger(err,"encrypt() failed",__LINE__,__FILE__,__FUNCTION__);
+				continue;
+				goto exit;
+			}
+
+			printf("\nEncrypted data (HEX): \n");
+			print_hex(enc_data, enc_data_len);
+
+			/* Empty the plaintext buffer */
+			memset(data, 0, sizeof(data));
+			data_len = 1024;
+
+			/* Call decrypt function */
+			err = decrypt(session_handle, key_handle, iv, enc_data, enc_data_len, data, &data_len);
+			if (err)
+			{
+				logger(err, "decrypt() failed", __LINE__, __FILE__, __FUNCTION__);
+				continue;
+				goto exit;
+			}
+
+			printf("\n Decrypted data (HEX): \n");
+			print_hex(data, data_len);
+
 			break;
 		}
 		default:
